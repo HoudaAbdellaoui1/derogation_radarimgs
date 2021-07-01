@@ -23,7 +23,7 @@
 """
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication,QVariant
 from qgis.PyQt.QtGui import QIcon,QColor,QCursor
-from qgis.PyQt.QtWidgets import QAction,QTableWidgetItem
+from qgis.PyQt.QtWidgets import QAction,QTableWidgetItem,QMessageBox
 from qgis.core import *
 from qgis.core import (QgsProject, QgsVectorLayer,QgsFeature,QgsRasterLayer,QgsGeometry)
 from qgis.gui import *
@@ -209,13 +209,15 @@ class derogation:
 
         x = self.dlg.x_projet.text()
         y = self.dlg.y_projet.text()
+
         # Specify the geometry type
         # layer = QgsVectorLayer('Point?crs=user:100000', 'point de interet' , 'memory')
-        layer = QgsVectorLayer("Point?crs=EPSG:3857" + str(crs.toWkt()), "Nouveau Projet", "memory")
+        layer = QgsVectorLayer("Point?crs=EPSG:3857&field=Nom:string(25)" + str(crs.toWkt()), "New project", "memory")
         prov = layer.dataProvider()
         point = QgsPointXY(float(x), float(y))
         feat = QgsFeature()
         feat.setGeometry(QgsGeometry.fromPointXY(point))
+        feat.setAttributes(["New project"])
         prov.addFeatures([feat])
         layer.updateExtents()
         QgsProject.instance().addMapLayers([layer])
@@ -228,6 +230,7 @@ class derogation:
         for layer in layers:
             layer_list.append(layer.name())
         self.dlg.combo_choose.addItems(layer_list)
+        self.zoomTo("New project")
 
 
     def buffer(self):
@@ -239,34 +242,28 @@ class derogation:
         mapRenderer = canvas.mapSettings()
         crs = mapRenderer.destinationCrs()
         self.iface.activeLayer()
-        # progress = self.dlg.progressBar
-        # progress.setMaximum(100)
-        tam = self.dlg.buffer_radius.text()
-        # tam = '10000'
+
+    
+        rayon = self.dlg.buffer_radius.text()
         distance = self.dlg.combo_choose.currentIndex()
+
         layer_buff = QgsVectorLayer("Polygon?crs=EPSG:3857" + str(crs.toWkt()), "Buffer", "memory")
         pr = layer_buff.dataProvider()
-        for elem in self.FindLayerByName("Nouveau Projet").getFeatures():
+
+        for elem in self.FindLayerByName("New project").getFeatures():
             geom = elem.geometry()
-            buffer = geom.buffer(float(tam),10)
+            buffer = geom.buffer(float(rayon),10)
             poly = buffer.asPolygon()
             seg = QgsFeature()
             seg.setGeometry(QgsGeometry.fromPolygonXY(poly))
             pr.addFeatures([seg])
             layer_buff.updateExtents()
             layer_buff.setOpacity(0.4)
-            # zooms to layer
-        self.iface.actionZoomToLayer().trigger()
             # Ajout de la couche
-            # count = layer_buff.selectedFeatureCount()
-            # i = 0
-            # for feature in layer_buff.selectedFeatures():
-            #     i = i + 1
-            #     percent = (i / float(count)) * 100
-            #     progress.setValue(percent)
-            #     time.sleep(1)
         QgsProject.instance().addMapLayers([layer_buff])
         layer_buff.isValid()
+        self.zoomTo("Buffer")
+
 
         layers = [tree_layer.layer() for tree_layer in QgsProject.instance().layerTreeRoot().findLayers()]
         # layers = self.iface.legendInterface().layers()
@@ -275,82 +272,9 @@ class derogation:
         for layer in layers:
             layer_list.append(layer.name())
         self.dlg.combo_choose.addItems(layer_list)
-
-    # def table_attri(self):
-    #
-    #     table = self.dlg.map_display
-    #     canvas = self.iface.mapCanvas()
-    #     areas = []
-    #
-    #     line_layer = self.FindLayerByName('Buffer')
-    #     QgsMessageLog.logMessage(str(line_layer))
-    #     area_layer = self.FindLayerByName(self.dlg.combo_choose.currentText())
-    #     QgsMessageLog.logMessage(str(area_layer))
-    #
-    #     prov = area_layer.dataProvider()
-    #     fields = prov.fields()
-    #     table.setColumnCount(7)
-    #     table.setRowCount(1)
-    #     i = 0
-    #     for field in fields:
-    #         if field.name() == "OBJECTID" or field.name() == "REGIME_FON" or field.name() == "REFERENCE_" or field.name() == "CERCLE" or field.name() == "COMMUNE" or field.name() == "STATUT_FON" or field.name() == "SUPERFICIE":
-    #             self.dlg.map_display.setHorizontalHeaderItem(i, QTableWidgetItem(field.name()))
-    #             i = i + 1
-    #
-    #     varcheck = 0
-    #     for line_feature in line_layer.getFeatures():
-    #         i = 0
-    #         for area_feature in area_layer.getFeatures():
-    #             QgsMessageLog.logMessage(str(area_feature.geometry().intersects(line_feature.geometry())))
-    #             if (area_feature.geometry().intersects(line_feature.geometry())==True):
-    #                 varcheck = 1
-    #                 areas.append(area_feature.id())
-    #                 area_feature.geometry().area()
-    #                 table.insertRow(i + 1)
-    #                 j = 0
-    #                 k = 0
-    #                 for field in fields:
-    #                     if field.name() == "OBJECTID" or field.name() == "REGIME_FON" or field.name() == "REFERENCE_" or field.name() == "CERCLE" or field.name() == "COMMUNE" or field.name() == "STATUT_FON" or field.name() == "SUPERFICIE":
-    #                         s = ''
-    #                         s = str(area_feature.attributes()[j])
-    #                         QMessageBox.information(None, "DEBUG:", str(s))
-    #                         table.setItem(i, k, QTableWidgetItem(s))
-    #                         k = k + 1
-    #                     j = j + 1
-    #
-    #                 i = i + 1
-    #         table.removeRow(i)
-    #
-    #         if not varcheck:
-    #             self.iface.messageBar().pushMessage("Problème : ","Désolés, pas d'intersection entre la couche choisie et alentour de point d'interet.Merci")
-    #
-    #         # legend = self.iface.legendInterface()
-    #     layers = [tree_layer.layer() for tree_layer in QgsProject.instance().layerTreeRoot().findLayers()]
-    #
-    #     for layer in canvas.layers():
-    #         if layer.type() == layer.VectorLayer:
-    #             layer.removeSelection()
-    #             QgsProject.instance().layerTreeRoot().findLayer(layer.id()).setItemVisibilityChecked(True)
-    #     canvas.refresh()
-    #     QgsProject.instance().layerTreeRoot().findLayer(area_layer.id()).setItemVisibilityChecked(True)
-    #     QgsProject.instance().layerTreeRoot().findLayer(line_layer.id()).setItemVisibilityChecked(True)
-    #         # legend.setLayerVisible(area_layer, True)
-    #         # legend.setLayerVisible(line_layer, True)
-    #         # project=self.FindLayerByName('Couche_Projet')
-    #         # legend.setLayerVisible(project, True)
-    #     area_layer.select(areas)
-    #     cLayer = self.iface.mapCanvas().currentLayer()
-    #     indexes = table.selectionModel().selectedRows()
-    #     cLayer.removeSelection()
-    #     for index in sorted(indexes):
-    #         print('Row %d is selected' % index.row())
-    #         cLayer.select(index.row())
-    #         canvas.zoomToSelected()
-    #     table.itemSelectionChanged.connect(self.afficher_zoom)
-
-
+        
+        
     def afficher_inter(self, row_data, row_number):
-
         self.dlg.map_display.insertRow(row_number)
         column = 0
         for column_number, data in enumerate(row_data.attributes()):
@@ -358,159 +282,38 @@ class derogation:
                 self.dlg.map_display.setItem(row_number, column, QTableWidgetItem(str(data)))
                 column += 1
 
-    def ajouter_table(self):
-        canvas = self.iface.mapCanvas()
-        w = self.FindLayerByName(self.dlg.combo_choose.currentText())
-        v = self.FindLayerByName('Buffer')
 
-        self.dlg.map_display.setRowCount(0)
-        field_names = [field.name() for num, field in enumerate(w.pendingFields()) if num in [0, 3, 7, 10]]
-        self.dlg.map_display.setHorizontalHeaderLabels(field_names)
-
-        row_number = 0
-        for a in w.getFeatures():
-            for b in v.getFeatures():
-                if a.geometry().intersects(b.geometry()):
-                    geom = a.geometry().QgsProject.instance().addMapLayer(layer1)(b.geometry())
-                    self.afficher_inter(geom, row_number)
-                    row_number += 1
-
-
-    def afficher_zoom(self):
-
-        table = self.dlg.map_display
-
-        canvas = self.iface.mapCanvas()
-        cLayer = self.iface.mapCanvas().currentLayer()
-        indexes = table.selectionModel().selectedRows()
-        cLayer.removeSelection()
-        for index in sorted(indexes):
-            print('Row %d is selected' % index.row())
-            cLayer.select(index.row())
-            canvas.zoomToSelected()
+    def zoomTo(self,name):
+        couche_buff= self.FindLayerByName(name)
+        feats = couche_buff.getFeatures()
+        for fid in feats: 
+            couche_buff.select(fid.id())
+            self.iface.mapCanvas().zoomToSelected()
+            break
 
     def intersection(self):
         v = self.FindLayerByName('Buffer')
         poly = self.FindLayerByName(self.dlg.combo_choose.currentText())
 
-        # intersec = QgsVectorLayer("Polygon?crs=EPSG:3857%field= Projets:string(25)&field=Status:string(25)&field = Surface:string(25)&field=Surface intersectee:string(25)",'Intersectiooons',"memory")
-        # intersec_data = intersec.dataProvider()
-        # intersec.startEditing()
-        #
-        # selectionsid = []
-        # selectionstatus = []
-        # selectionsurface = []
-        # selectionsintersurface = []
-        # buffer_features = v.getFeatures()
-        # p_features =poly.getFeatures()
-        #
-        # for bf in buffer_features:
-        #     for p in p_features:
-        #         if bf.geometry().intersects(p.geometry()):
-        #             feature_int = QgsFeature()
-        #             selectionsid.append(p.id())
-        #             selectionstatus.append(poly.name())
-        #             surface = int(poly.fields().lookupField("SUPERFICIE"))
-        #             selectionsurface.append(p.attributes()[surface])
-        #             intersection_result = bf.geometry().intersection(p.geometry())
-        #             selectionsintersurface.append(intersection_result.area())
-        #             feature_int.setAttributes([p.id(), poly.name(), p.attributes()[surface],bf.geometry().intersection(p.geometry()).area()])
-        #             feature_int.setGeometry(intersection_result)
-        #             print("yesss")
-        #             intersec_data.addFeatures([feature_int])
-        #             poly.selectByIds(selectionsid)
-        #             self.iface.mapCanvas().zoomToSelected(v)
-        #
-        # intersec.commitChanges()
-        # intersec.updateExtents()
-
-        # for a in v.getFeatures():
-        #     for b in poly.getFeatures():
-        #         if a.geometry().intersects(b.geometry()):
-        #             fet= QgsFeature()
-        #             selectionsid.append(b.id())
-        #             selectionstatus.append(b.name())
-        #             surface =
-
-        # intersections = []
-        # for a in v.getFeatures():
-        #     for b in poly.getFeatures():
-        #         if a.geometry().intersects(b.geometry()):
-        #             feat = QgsFeature()
-        #
-        #             intersection = a.geometry().intersection(b.geometry())
-        #
-        #             layer1 = QgsVectorLayer(intersection)
-        #             layer1.addFeatures(intersection)
-        #
-        # QgsProject.instance().addMapLayer(intersections)
-        # # # QgsProject.instance().addMapLayer(a)
-        # self.iface.actionZoomToSelected().trigger()
-        # print(a)
-
-        # buffer:layer = QgsVectorLayer(v,"Buffffers","ogr")
-        # QgsProject.instance().addMapLayer(buffer_layer,False)
-        #
-        # parameter= {'INPUT':QgsProcessingFeatureSourceDefinition(buffer_layer.id(), True),
-        #       'OUTPUT': 'memory:'}
-        # poly_layer = processing.run()
-
-        # buffer_layer = self.iface.addVectorLayer(v,'buffer','ogr')
-        # intersection_lay = self.iface.addVectorLayer(poly,'intersected','ogr')
-        #
-        # for i in range(5):
-        #     intersection_lay.select(i)
-        #     params={
-        #         'INPUT':buffer_layer,
-        #         'PREDICATE':0,
-        #         'INTERSECT':QgsProcessingFeatureSourceDefinition(intersection_lay.id(), True),
-        #         'METHOD':0}
-        #     result = processing.run("qgis:selectbylocation",params)
-        # for a in v.getFeatures():
-        #     for b in poly.getFeatures():
-        #         if a.geometry().intersects(b.geometry()):
-        #             print(a.id(),",",b.id())
-        #             poly.select(b.id())
-        #             self.iface.actionZoomToSelected().trigger()
-        #
-        # a1 = QgsProject.instance().mapLayersByName('Buffer')[0]
-        # a2 = QgsProject.instance().mapLayersByName(str(str(self.dlg.combo_choose.currentText()))[0])
-        # # processing.runandload("qgis:intersection",a1,a2,"memory:myCut")
-
-        canvas = self.iface.mapCanvas()
-        mapRenderer = canvas.mapSettings()
-        crs = mapRenderer.destinationCrs()
-        self.iface.activeLayer()
-
-        # layer_buff = QgsVectorLayer("Polygon?crs=EPSG:3857" + str(crs.toWkt()), "Buffer", "memory")
-
-        layer = QgsVectorLayer("Polygon?crs=EPSG:3857" + str(crs.toWkt()),"Intersections", "memory")
-        QgsProject.instance().addMapLayer(layer,False)
-
-
         a = processing.run("qgis:intersection",{
             "INPUT":poly,
             "PREDICATE":0,
             "OVERLAY":v,
-            "METHOD":0,
-            "OUTPUT": 'TEMPORARY_OUTPUT'})
-        print(a)
+            "OVERLAY_FIELDS_PREFIX":"well",
+            "OUTPUT":"memory:",})["OUTPUT"]
+        QgsProject.instance().addMapLayer(a)
+        # self.dlg.tableView.QgsAttributeTableView(a)
+        # canvas = self.iface.mapCanvas()
+        # vector_layer_cache = QgsVectorLayerCache(a, 10000)
+        # attribute_table_model = QgsAttributeTableModel(vector_layer_cache)
+        # attribute_table_model.loadLayer()
+
+        # attribute_table_filter_model = QgsAttributeTableFilterModel(canvas, attribute_table_model)
+        # self.dlg.tableView = QgsAttributeTableView()
+        # self.dlg.tableView.setModel(attribute_table_filter_model)
+
+        # self.dlg.tableView.show()
         
-        layer = a['OUTPUT']
-        layer.commitChanges()
-        layer.updateExtents()
-        self.iface.actionZoomToLayer()
-
-
-    # def genererPDF(self):
-    #     mapRenderer = iface.mapCanvas().mapSettings()
-    #     c = QgsComposition(mapRenderer)
-    #     c.setPlotStyle(QgsComposition.Print)
-    #     c. setPrintResolution(300)
-    #     w,h =c.paperWidth(), c.paperHeight()
-    #     composerMap = QgsComposerMap(c,0,0,w,h)
-    #     c.addItem(composerMap)
-
     def FindLayerByName(self,NameLayer):
         couche = None
         for ch in QgsProject.instance().mapLayers().values():
@@ -520,7 +323,6 @@ class derogation:
         return couche
 
     # DILIGUIIIIIII THE  CODE FOR THE SECOND PART STARTS HERE 
-
 
     def buttons(self):
             self.dlg.btn_valider.clicked.connect(lambda: self.dlg.tabWidget.setCurrentIndex(2))
@@ -533,6 +335,7 @@ class derogation:
     def on_change(self):
         if self.dlg.comboBox.currentText()=="Sentinel - 1":
             self.dlg.comboBox_2.setEnabled(False)
+
         else :
             self.dlg.comboBox_2.setEnabled(True)
             
@@ -551,9 +354,6 @@ class derogation:
                 layer_list.append(layer.name())
             self.dlg.combo_choose.addItems(layer_list)
 
-        # show the dialog
-        self.dlg.show()
-
         self.dlg.create_btn.clicked.connect(self.zone_interet)
         self.dlg.analyze_btn.clicked.connect(self.buffer)
         self.dlg.afficher_btn.clicked.connect(self.intersection)
@@ -561,7 +361,8 @@ class derogation:
 
         self.buttons()
     
-
+        # show the dialog
+        self.dlg.show()
         # Run the dialog event loop
         result = self.dlg.exec_()
         # See if OK was pressed
